@@ -1,1 +1,7 @@
 streamlit
+deepforest
+pillow
+rasterio
+opencv-python-headless
+matplotlib
+geopandaspyproj
