@@ -1,29 +1,26 @@
-# app.py
 import streamlit as st
 import numpy as np
 from PIL import Image
 import rasterio
 from rasterio.plot import reshape_as_image
-import cv2
 import matplotlib.pyplot as plt
 from deepforest import main
 from deepforest.utilities import plot_predictions
 import tempfile
 import os
 
-# Set Streamlit configuration
+# Streamlit config
 st.set_page_config(page_title="Tree Detection with DeepForest", layout="wide")
 
-# Load DeepForest model and cache it
+# Cache the model loading
 @st.cache_resource
 def load_model():
     model = main.deepforest()
     model.use_release()
     return model
 
-# Process the uploaded image and return predictions
+# Process uploaded image
 def process_image(uploaded_file, model):
-    # Save uploaded file to a temporary path
     with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp:
         tmp.write(uploaded_file.getbuffer())
         tmp_path = tmp.name
@@ -37,40 +34,38 @@ def process_image(uploaded_file, model):
                 if img_array.shape[2] > 3:
                     img_array = img_array[:, :, :3]
                 elif img_array.shape[2] == 1:
-                    img_array = cv2.cvtColor(img_array, cv2.COLOR_GRAY2RGB)
+                    img_array = np.stack([img_array.squeeze()] * 3, axis=-1)
 
                 img_array = img_array.astype("uint8")
         else:
             img_array = np.array(Image.open(tmp_path))
-            if len(img_array.shape) == 2:  # grayscale
-                img_array = cv2.cvtColor(img_array, cv2.COLOR_GRAY2RGB)
-            elif img_array.shape[2] == 4:  # RGBA
-                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
+
+            if len(img_array.shape) == 2:
+                img_array = np.stack([img_array] * 3, axis=-1)
+            elif img_array.shape[2] == 4:
+                img_array = img_array[:, :, :3]
     finally:
         os.unlink(tmp_path)
 
-    # Convert to BGR as expected by DeepForest
-    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+    # RGB to BGR (DeepForest expects BGR)
+    img_array = img_array[:, :, ::-1]
 
-    # Run prediction
+    # Predict bounding boxes
     boxes = model.predict_image(image=img_array)
-
     return boxes, img_array
 
-# Main application
+# App layout
 def main():
-    # Sidebar info
     st.sidebar.title("🌲 Tree Detector")
     st.sidebar.markdown("""
     Upload aerial or satellite images to detect and count trees using DeepForest.
 
-    **Supported formats:** TIFF, PNG, JPG, JPEG
-    **Max size:** 10MB
+    **Supported formats**: TIFF, PNG, JPG, JPEG  
+    **Max size**: 10MB
     """)
 
-    # Main content
     st.title("🌳 Tree Counting with DeepForest")
-    st.write("Upload a geospatial image to detect trees.")
+    st.write("Upload an image to detect trees using a deep learning model.")
 
     uploaded_file = st.file_uploader("📤 Upload Image", type=["tif", "tiff", "png", "jpg", "jpeg"])
 
@@ -84,14 +79,12 @@ def main():
         with st.spinner("🧠 Processing image..."):
             boxes, img_array = process_image(uploaded_file, model)
 
-        # Tree count
         tree_count = len(boxes)
         st.success(f"✅ **Detected Trees: {tree_count}**")
 
-        # Image columns
         col1, col2 = st.columns(2)
         with col1:
-            st.image(img_array, caption="Original Image", channels="BGR", use_column_width=True)
+            st.image(img_array[:, :, ::-1], caption="Original Image", use_column_width=True)
 
         with col2:
             fig, ax = plt.subplots(figsize=(10, 10))
@@ -99,11 +92,11 @@ def main():
             ax.set_axis_off()
             st.pyplot(fig, use_container_width=True)
 
-        # Download results
+        # Download detection results
         csv = boxes.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Detection Results", csv, file_name="tree_detections.csv", mime="text/csv")
+        st.download_button("📥 Download Detection Results", csv, "tree_detections.csv", "text/csv")
 
-        # Show prediction data
+        # View detection table
         with st.expander("📋 Detection Details"):
             st.dataframe(boxes)
 
