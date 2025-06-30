@@ -4,5 +4,3 @@ pillow
 rasterio
 opencv-python-headless
 matplotlib
-geopandas
-pyproj
