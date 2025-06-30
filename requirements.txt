@@ -1,6 +1,5 @@
-streamlit==1.46.1
-deepforest==1.5.2
-pillow==11.2.1
-rasterio==1.4.3
-opencv-python-headless==4.11.0.86
-matplotlib==3.10.3
+streamlit
+deepforest
+pillow
+rasterio
+matplotlib
